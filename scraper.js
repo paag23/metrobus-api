@@ -19,10 +19,38 @@ async function obtenerMetrobus() {
 			timeout: 30000
 		});
 		
-		// esperar contenido real
-		await page.waitForSelector("table", { timeout: 10000 });
+		//  DEBUG frames
+		const frames = page.frames();
 
-        const html = await page.content();
+		console.log("FRAMES DETECTADOS:");
+		frames.forEach(f => console.log(f.url()));
+		
+	
+
+		//  encontrar iframe correcto
+		const frame = page.frames().find(f =>
+		f.url().includes("bandejaEstadoServicio")
+		);
+
+		if (!frame) {
+		console.log("❌ No se encontró el frame");
+		return [];
+		}
+
+		// esperar tabla dentro del iframe
+		await frame.waitForSelector("table", { timeout: 10000 });
+
+		const html = await frame.content();
+
+
+
+		if (!frame) {
+		console.log("❌ No se encontró el frame");
+		return [];
+		}
+
+		const html = await frame.content();
+
 
         const $ = cheerio.load(html);
 
@@ -63,7 +91,8 @@ async function obtenerMetrobus() {
     } catch (error) {
         console.error("❌ Puppeteer error:", error.message);
 		console.log("HTML parcial:");
-		console.log(html.substring(0, 500));
+		console.log("HTML frame:");
+		console.log(html.substring(0, 300));
         return [];
 
     } finally {

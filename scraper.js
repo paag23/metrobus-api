@@ -15,17 +15,21 @@ async function obtenerMetrobus() {
         const page = await browser.newPage();
 
         await page.goto(URL, {
-            waitUntil: "networkidle2",
-            timeout: 30000
-        });
+			waitUntil: "domcontentloaded",
+			timeout: 30000
+		});
+		
+		// esperar contenido real
+		await page.waitForSelector("table", { timeout: 10000 });
 
         const html = await page.content();
 
         const $ = cheerio.load(html);
 
         let resultados = [];
-
-        $("tr").each((i, el) => {
+		
+		//  selector más específico
+        $("table tr").each((i, el) => {
             const columnas = $(el).find("td");
 
             if (columnas.length >= 3) {
@@ -58,6 +62,8 @@ async function obtenerMetrobus() {
 
     } catch (error) {
         console.error("❌ Puppeteer error:", error.message);
+		console.log("HTML parcial:");
+		console.log(html.substring(0, 500));
         return [];
 
     } finally {

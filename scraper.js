@@ -1,34 +1,27 @@
-const axios = require("axios");
-const https = require("https");
+const puppeteer = require("puppeteer");
 const cheerio = require("cheerio");
 
 const URL = "https://incidentesmovilidad.cdmx.gob.mx/public/bandejaEstadoServicio.xhtml?idMedioTransporte=mb";
 
-const agent = new https.Agent({
-    keepAlive: true,
-    timeout: 20000
-});
-
 async function obtenerMetrobus() {
+    let browser;
+
     try {
-        const { data } = await axios.get(URL, {
-            httpsAgent: agent,
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml",
-                "Accept-Language": "es-MX,es;q=0.9",
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache",
-                "Connection": "keep-alive"
-            },
-            timeout: 20000,
-            maxRedirects: 5
+        browser = await puppeteer.launch({
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            headless: "new"
         });
 
-        console.log("HTML recibido:");
-        console.log(data.substring(0, 300));
+        const page = await browser.newPage();
 
-        const $ = cheerio.load(data);
+        await page.goto(URL, {
+            waitUntil: "networkidle2",
+            timeout: 30000
+        });
+
+        const html = await page.content();
+
+        const $ = cheerio.load(html);
 
         let resultados = [];
 
@@ -39,12 +32,12 @@ async function obtenerMetrobus() {
 
                 const imgSrc = $(columnas[0]).find("img").attr("src");
 
-                let linea = "";
+                let lineaNum = 0;
 
                 if (imgSrc) {
                     const match = imgSrc.match(/MB(\d+)/);
                     if (match) {
-                        linea = "Linea " + match[1];
+                        lineaNum = parseInt(match[1]);
                     }
                 }
 
@@ -53,24 +46,23 @@ async function obtenerMetrobus() {
                 const info = $(columnas[3]).text().trim();
 
                 resultados.push({
-                    linea,
-                    estado,
-                    estaciones,
-                    info
+                    l: lineaNum,
+                    e: estado === "Servicio Regular" ? 1 : 0,
+                    s: estaciones !== "Ninguna" ? estaciones : "",
+                    i: info || ""
                 });
             }
         });
 
-        console.log("\n===== JSON =====");
-        console.log(JSON.stringify(resultados, null, 2));
-
         return resultados;
 
     } catch (error) {
-        console.error("❌ Error scraping:", error.message);
+        console.error("❌ Puppeteer error:", error.message);
         return [];
+
+    } finally {
+        if (browser) await browser.close();
     }
 }
 
-// Ejecutar
-obtenerMetrobus();
+module.exports = { obtenerMetrobus };

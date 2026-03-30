@@ -1,9 +1,8 @@
 const express = require("express");
 const axios = require("axios");
 const cheerio = require("cheerio");
-
+const puppeteer = require("puppeteer");
 const app = express();
-
 //  IMPORTANTE para Render
 const PORT = process.env.PORT || 3000;
 
@@ -21,50 +20,72 @@ function limpiarTexto(texto) {
         .replace(/[\u0300-\u036f]/g, "");
 }
 
+
 async function obtenerMetrobus() {
-    const { data } = await axios.get(URL, {
-        headers: {
-            "User-Agent": "Mozilla/5.0"
-        },
-        timeout: 10000
-    });
-	
-	console.log(data.substring(0, 500));
+    let browser;
 
-    const $ = cheerio.load(data);
+    try {
+        browser = await puppeteer.launch({
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            headless: "new"
+        });
 
-    let resultados = [];
+        const page = await browser.newPage();
 
-    $("tr").each((i, el) => {
-        const columnas = $(el).find("td");
-
-        if (columnas.length >= 3) {
-
-            const imgSrc = $(columnas[0]).find("img").attr("src");
-
-            let lineaNum = 0;
-
-            if (imgSrc) {
-                const match = imgSrc.match(/MB(\d+)/);
-                if (match) {
-                    lineaNum = parseInt(match[1]);
-                }
+        await page.goto(
+            "https://incidentesmovilidad.cdmx.gob.mx/public/bandejaEstadoServicio.xhtml?idMedioTransporte=mb",
+            {
+                waitUntil: "networkidle2",
+                timeout: 30000
             }
+        );
 
-            const estado = limpiarTexto($(columnas[1]).text().trim());
-            const estaciones = limpiarTexto($(columnas[2]).text().trim());
-            const info = limpiarTexto($(columnas[3]).text().trim());
+        const html = await page.content();
 
-            resultados.push({
-                l: lineaNum,
-                e: estado === "Servicio Regular" ? 1 : 0,
-                s: estaciones !== "Ninguna" ? estaciones : "",
-                i: info || ""
-            });
-        }
-    });
+        console.log("HTML cargado (puppeteer)");
 
-    return resultados;
+        const $ = cheerio.load(html);
+
+        let resultados = [];
+
+        $("tr").each((i, el) => {
+            const columnas = $(el).find("td");
+
+            if (columnas.length >= 3) {
+
+                const imgSrc = $(columnas[0]).find("img").attr("src");
+
+                let lineaNum = 0;
+
+                if (imgSrc) {
+                    const match = imgSrc.match(/MB(\d+)/);
+                    if (match) {
+                        lineaNum = parseInt(match[1]);
+                    }
+                }
+
+                const estado = $(columnas[1]).text().trim();
+                const estaciones = $(columnas[2]).text().trim();
+                const info = $(columnas[3]).text().trim();
+
+                resultados.push({
+                    l: lineaNum,
+                    e: estado === "Servicio Regular" ? 1 : 0,
+                    s: estaciones !== "Ninguna" ? estaciones : "",
+                    i: info || ""
+                });
+            }
+        });
+
+        return resultados;
+
+    } catch (error) {
+        console.error("❌ Error Puppeteer:", error.message);
+        return [];
+
+    } finally {
+        if (browser) await browser.close();
+    }
 }
 
 // ENDPOINT
@@ -83,9 +104,9 @@ app.get("/metrobus", async (req, res) => {
         res.json(cache);
 
     } catch (error) {
-        console.error("❌ Error:", error.message);
-        res.status(500).json({ error: "Error obteniendo datos" });
-    }
+		console.error("ERROR REAL:", error);
+		res.status(500).json({ error: error.message });
+	}
 });
 
 // test

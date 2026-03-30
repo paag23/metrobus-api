@@ -28,6 +28,8 @@ async function obtenerMetrobus() {
         },
         timeout: 10000
     });
+	
+	console.log(data.substring(0, 500));
 
     const $ = cheerio.load(data);
 

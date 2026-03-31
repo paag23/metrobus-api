@@ -52,7 +52,7 @@ async function obtenerMetrobus() {
                     e: estado === "Servicio Regular" ? 1 : 0,
                     s: estaciones !== "Ninguna" ? estaciones : "",
                     i: info || ""
-                });
+                });	
             }
         });
 

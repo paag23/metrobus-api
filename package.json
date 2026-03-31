@@ -4,8 +4,7 @@
   "description": "API para estado del Metrobus CDMX",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "npx --yes puppeteer browsers install chrome"
+    "start": "node server.js"
   },
   "keywords": [
     "metrobus",
@@ -20,6 +19,6 @@
     "axios": "^1.13.6",
     "cheerio": "^1.2.0",
     "express": "^4.19.2",
-    "puppeteer": "^24.40.0"
+    "puppeteer-core": "^24.40.0"
   }
 }

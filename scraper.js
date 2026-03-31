@@ -1,4 +1,4 @@
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core");
 
 const URL = "https://incidentesmovilidad.cdmx.gob.mx/public/bandejaEstadoServicio.xhtml?idMedioTransporte=mb";
 
@@ -8,12 +8,14 @@ async function obtenerMetrobus() {
     try {
         console.log("🚀 Iniciando navegador...");
         
-        // Configuración básica para Render
+        // Usar Chrome que ya está instalado en Render
         browser = await puppeteer.launch({
+            executablePath: "/usr/bin/google-chrome",
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage'
+                '--disable-dev-shm-usage',
+                '--disable-gpu'
             ],
             headless: true
         });

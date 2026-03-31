@@ -1,54 +1,65 @@
 const express = require("express");
 const app = express();
 const { obtenerMetrobus } = require("./scraper");
-//  IMPORTANTE para Render
 const PORT = process.env.PORT || 3000;
 
-const URL = "https://incidentesmovilidad.cdmx.gob.mx/public/bandejaEstadoServicio.xhtml?idMedioTransporte=mb";
-
-//  CACHE
+// CACHE
 let cache = null;
 let lastUpdate = 0;
 const CACHE_TIME = 60 * 1000; // 1 minuto
 
-// limpiar acentos (FUERA del loop)
-function limpiarTexto(texto) {
-    return texto
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
-}
-
-
-
-// ENDPOINT
+// Endpoint principal
 app.get("/metrobus", async (req, res) => {
     try {
         const now = Date.now();
 
         if (!cache || now - lastUpdate > CACHE_TIME) {
             console.log("🔄 Actualizando datos...");
-
             const data = await obtenerMetrobus();
-            console.log("DATA RAW:", data); // 🔥 clave
-
-            cache = data; // sin filtro por ahora
+            
+            // Limpiar datos para enviar al ESP8266
+            const cleanedData = data.map(item => ({
+                l: item.l,
+                e: item.e,
+                s: item.s,
+                i: item.i
+            }));
+            
+            cache = cleanedData;
             lastUpdate = now;
+            console.log(`✅ Datos actualizados: ${cache.length} registros`);
+        } else {
+            console.log("📦 Sirviendo desde caché");
         }
 
         res.json(cache);
 
     } catch (error) {
-        console.error("ERROR REAL:", error);
+        console.error("❌ Error en endpoint:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// test
+// Endpoint de prueba con más detalles
+app.get("/debug", async (req, res) => {
+    try {
+        const data = await obtenerMetrobus();
+        res.json({
+            total: data.length,
+            data: data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get("/", (req, res) => {
-    res.send("API Metrobus funcionando 🚀");
+    res.send("API Metrobus funcionando 🚀<br/>Usa /metrobus para obtener datos");
 });
 
 // START
 app.listen(PORT, () => {
-    console.log(`Servidor corriendo en puerto ${PORT}`);
+    console.log(`✅ Servidor corriendo en puerto ${PORT}`);
+    console.log(`📡 Endpoint: http://localhost:${PORT}/metrobus`);
 });

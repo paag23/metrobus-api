@@ -1,7 +1,4 @@
 const express = require("express");
-const axios = require("axios");
-const cheerio = require("cheerio");
-const puppeteer = require("puppeteer");
 const app = express();
 const { obtenerMetrobus } = require("./scraper");
 //  IMPORTANTE para Render
@@ -30,18 +27,20 @@ app.get("/metrobus", async (req, res) => {
 
         if (!cache || now - lastUpdate > CACHE_TIME) {
             console.log("🔄 Actualizando datos...");
-            cache = (await obtenerMetrobus()).filter(x => x.e === 0);
+
+            const data = await obtenerMetrobus();
+            console.log("DATA RAW:", data); // 🔥 clave
+
+            cache = data; // sin filtro por ahora
             lastUpdate = now;
-        } else {
-            console.log("⚡ Usando cache");
         }
 
         res.json(cache);
 
     } catch (error) {
-		console.error("ERROR REAL:", error);
-		res.status(500).json({ error: error.message });
-	}
+        console.error("ERROR REAL:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // test

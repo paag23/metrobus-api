@@ -57,7 +57,7 @@ async function obtenerMetrobus() {
         let resultados = [];
 		
 		//  selector más específico
-        $("table tr").each((i, el) => {
+        $(".ui-datatable-data tr").each((i, el) => {
             const columnas = $(el).find("td");
 
             if (columnas.length >= 3) {

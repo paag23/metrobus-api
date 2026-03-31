@@ -6,10 +6,6 @@
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "express": "^4.19.2",
     "puppeteer-core": "^24.40.0"

@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: metrobus-api
+    runtime: node
+    plan: free
+    buildCommand: |-
+      apt-get update
+      apt-get install -y chromium
+      npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0

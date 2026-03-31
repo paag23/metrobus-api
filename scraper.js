@@ -14,145 +14,118 @@ async function obtenerMetrobus() {
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-accelerated-2d-canvas',
-                '--disable-gpu'
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process'
             ],
-            headless: "new"
+            headless: "new",
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
         });
 
         const page = await browser.newPage();
         
-        // Configurar timeout más largo
+        // Configurar timeout
         page.setDefaultTimeout(60000);
-        page.setDefaultNavigationTimeout(60000);
-
+        
+        // User agent realista
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        
         console.log("📄 Navegando a:", URL);
         await page.goto(URL, {
-            waitUntil: "networkidle0", // Esperar a que no haya más conexiones de red
+            waitUntil: "networkidle2",
             timeout: 60000
         });
 
-        // Esperar un poco más para que carguen los datos dinámicos
-        await page.waitForTimeout(5000);
-
-        // Esperar por la tabla o por cualquier contenido
+        // Esperar carga de la tabla
+        await page.waitForTimeout(3000);
+        
+        // Intentar esperar por la tabla
         try {
-            await page.waitForSelector(".ui-datatable-data, table", { timeout: 15000 });
+            await page.waitForSelector("table", { timeout: 10000 });
+            await page.waitForTimeout(2000);
         } catch (e) {
-            console.log("⚠️ No se encontró la tabla principal, intentando con selectores alternativos...");
+            console.log("⚠️ Timeout esperando tabla, continuando...");
         }
 
-        // Tomar screenshot para depuración
-        await page.screenshot({ path: 'debug-screenshot.png', fullPage: true });
-        console.log("📸 Screenshot guardado como debug-screenshot.png");
-
-        // Obtener el HTML
-        const html = await page.content();
-        
-        // Guardar HTML para depuración
-        const fs = require('fs');
-        fs.writeFileSync('debug-page.html', html);
-        console.log("📄 HTML guardado como debug-page.html");
-
-        const $ = cheerio.load(html);
-
-        // Buscar cualquier tabla que pueda contener los datos
-        let resultados = [];
-        
-        // Intentar múltiples selectores
-        const selectores = [
-            ".ui-datatable-data tr",
-            "table tr",
-            "tbody tr",
-            ".ui-datatable tbody tr"
-        ];
-
-        for (const selector of selectores) {
-            const filas = $(selector);
-            if (filas.length > 0) {
-                console.log(`✅ Encontradas ${filas.length} filas con selector: ${selector}`);
+        // Extraer datos
+        const resultados = await page.evaluate(() => {
+            const datos = [];
+            
+            // Buscar todas las filas de la tabla
+            const filas = document.querySelectorAll("tr");
+            
+            filas.forEach(fila => {
+                const columnas = fila.querySelectorAll("td");
                 
-                filas.each((i, el) => {
-                    const columnas = $(el).find("td");
+                if (columnas.length >= 2) {
+                    // Buscar número de línea
+                    let lineaNum = 0;
+                    const imagenes = fila.querySelectorAll("img");
                     
-                    if (columnas.length >= 2) {
-                        // Extraer toda la información disponible
-                        let rowData = [];
-                        columnas.each((j, col) => {
-                            rowData.push($(col).text().trim());
-                        });
-                        
-                        // Intentar extraer número de línea de cualquier parte
-                        let lineaNum = 0;
+                    imagenes.forEach(img => {
+                        const src = img.src || "";
+                        const match = src.match(/MB(\d+)/);
+                        if (match) {
+                            lineaNum = parseInt(match[1]);
+                        }
+                    });
+                    
+                    // Si no hay imagen, buscar texto
+                    if (lineaNum === 0) {
+                        const textoCompleto = fila.innerText;
+                        const matchTexto = textoCompleto.match(/Línea\s*(\d+)/i);
+                        if (matchTexto) {
+                            lineaNum = parseInt(matchTexto[1]);
+                        }
+                    }
+                    
+                    if (lineaNum > 0) {
+                        // Extraer estado (segunda columna o primera según estructura)
                         let estado = "";
                         let estaciones = "";
                         let info = "";
                         
-                        // Buscar imagen con número de línea
-                        const img = $(el).find("img");
-                        if (img.length > 0) {
-                            const imgSrc = img.attr("src");
-                            if (imgSrc) {
-                                const match = imgSrc.match(/MB(\d+)/);
-                                if (match) {
-                                    lineaNum = parseInt(match[1]);
-                                }
+                        if (columnas.length >= 2) {
+                            estado = columnas[1]?.innerText?.trim() || "";
+                            if (columnas.length >= 3) {
+                                estaciones = columnas[2]?.innerText?.trim() || "";
                             }
-                        }
-                        
-                        // Si no se encontró en la imagen, buscar en el texto
-                        if (lineaNum === 0) {
-                            const textoCompleto = rowData.join(" ");
-                            const matchLinea = textoCompleto.match(/Línea\s*(\d+)/i);
-                            if (matchLinea) {
-                                lineaNum = parseInt(matchLinea[1]);
+                            if (columnas.length >= 4) {
+                                info = columnas[3]?.innerText?.trim() || "";
                             }
+                        } else if (columnas.length >= 1) {
+                            estado = columnas[0]?.innerText?.trim() || "";
                         }
                         
-                        // Asignar valores según la estructura encontrada
-                        if (rowData.length >= 3) {
-                            estado = rowData[1] || "";
-                            estaciones = rowData[2] || "";
-                            info = rowData[3] || "";
-                        } else if (rowData.length === 2) {
-                            estado = rowData[0] || "";
-                            estaciones = rowData[1] || "";
-                        }
-                        
-                        if (lineaNum > 0) {
-                            resultados.push({
-                                l: lineaNum,
-                                e: estado.includes("Regular") ? 1 : 0,
-                                s: estaciones !== "Ninguna" && estaciones !== "" ? estaciones : "",
-                                i: info || "",
-                                raw: rowData // Para depuración
-                            });
-                        }
+                        datos.push({
+                            l: lineaNum,
+                            e: estado.includes("Regular") || estado.includes("Servicio Regular") ? 1 : 0,
+                            s: (estaciones && estaciones !== "Ninguna") ? estaciones : "",
+                            i: info || ""
+                        });
                     }
-                });
-                
-                if (resultados.length > 0) break;
-            }
-        }
-
-        // Si no se encontraron resultados, intentar con otro enfoque
-        if (resultados.length === 0) {
-            console.log("🔍 Buscando en toda la página...");
-            const textoPagina = $("body").text();
-            console.log("Texto de la página:", textoPagina.substring(0, 500));
+                }
+            });
             
-            // Buscar líneas en el texto
-            const lineasEncontradas = textoPagina.match(/Línea\s*(\d+)/gi);
-            if (lineasEncontradas) {
-                console.log("Líneas encontradas en texto:", lineasEncontradas);
-            }
-        }
+            return datos;
+        });
 
-        console.log(`📊 Total de resultados: ${resultados.length}`);
+        console.log(`✅ Encontrados ${resultados.length} registros`);
+        
+        if (resultados.length === 0) {
+            // Log para depuración
+            const titulo = await page.title();
+            console.log(`📄 Título de la página: ${titulo}`);
+            
+            // Tomar screenshot para debug
+            const screenshot = await page.screenshot({ encoding: 'base64' });
+            console.log(`📸 Screenshot tomado (${screenshot.length} bytes)`);
+        }
+        
         return resultados;
 
     } catch (error) {
-        console.error("❌ Puppeteer error:", error.message);
-        console.error("Stack:", error.stack);
+        console.error("❌ Error en scraper:", error.message);
         return [];
 
     } finally {

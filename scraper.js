@@ -8,44 +8,16 @@ async function obtenerMetrobus() {
     try {
         console.log("🚀 Iniciando navegador...");
         
-        // Buscar Chrome en posibles ubicaciones
-        const possiblePaths = [
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/google-chrome',
-            '/opt/render/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome',
-        ];
-        
-        let executablePath = null;
-        const fs = require('fs');
-        const { execSync } = require('child_process');
-        
-        // Intentar encontrar Chrome
-        for (const path of possiblePaths) {
-            try {
-                if (fs.existsSync(path)) {
-                    executablePath = path;
-                    console.log(`✅ Chrome encontrado en: ${path}`);
-                    break;
-                }
-            } catch (e) {}
-        }
-        
-        // Configurar opciones de Puppeteer
-        const options = {
+        // Configuración básica para Render
+        browser = await puppeteer.launch({
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu'
+                '--disable-dev-shm-usage'
             ],
             headless: true
-        };
+        });
         
-        if (executablePath) {
-            options.executablePath = executablePath;
-        }
-        
-        browser = await puppeteer.launch(options);
         const page = await browser.newPage();
         
         console.log("📄 Cargando página...");
@@ -76,14 +48,6 @@ async function obtenerMetrobus() {
                             lineaNum = parseInt(match[1]);
                         }
                     });
-                    
-                    if (lineaNum === 0) {
-                        const textoCompleto = fila.innerText;
-                        const matchTexto = textoCompleto.match(/Línea\s*(\d+)/i);
-                        if (matchTexto) {
-                            lineaNum = parseInt(matchTexto[1]);
-                        }
-                    }
                     
                     if (lineaNum > 0) {
                         let estado = columnas[1]?.innerText?.trim() || "";

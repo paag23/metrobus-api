@@ -1,5 +1,4 @@
 const puppeteer = require("puppeteer");
-const cheerio = require("cheerio");
 
 const URL = "https://incidentesmovilidad.cdmx.gob.mx/public/bandejaEstadoServicio.xhtml?idMedioTransporte=mb";
 
@@ -9,16 +8,43 @@ async function obtenerMetrobus() {
     try {
         console.log("🚀 Iniciando navegador...");
         
-        // Configuración básica para Render
+        // Buscar Chrome en posibles ubicaciones
+        const possiblePaths = [
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
+            '/opt/render/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome',
+        ];
+        
+        let executablePath = null;
+        const fs = require('fs');
+        const { execSync } = require('child_process');
+        
+        // Intentar encontrar Chrome
+        for (const path of possiblePaths) {
+            try {
+                if (fs.existsSync(path)) {
+                    executablePath = path;
+                    console.log(`✅ Chrome encontrado en: ${path}`);
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        // Configurar opciones de Puppeteer
         const options = {
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage'
+                '--disable-dev-shm-usage',
+                '--disable-gpu'
             ],
             headless: true
         };
-
+        
+        if (executablePath) {
+            options.executablePath = executablePath;
+        }
+        
         browser = await puppeteer.launch(options);
         const page = await browser.newPage();
         
@@ -28,7 +54,7 @@ async function obtenerMetrobus() {
             timeout: 60000
         });
 
-        // Esperar a que cargue la tabla
+        // Esperar carga
         await page.waitForTimeout(5000);
         
         // Extraer datos
@@ -50,6 +76,14 @@ async function obtenerMetrobus() {
                             lineaNum = parseInt(match[1]);
                         }
                     });
+                    
+                    if (lineaNum === 0) {
+                        const textoCompleto = fila.innerText;
+                        const matchTexto = textoCompleto.match(/Línea\s*(\d+)/i);
+                        if (matchTexto) {
+                            lineaNum = parseInt(matchTexto[1]);
+                        }
+                    }
                     
                     if (lineaNum > 0) {
                         let estado = columnas[1]?.innerText?.trim() || "";

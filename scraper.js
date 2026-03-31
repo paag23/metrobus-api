@@ -15,48 +15,18 @@ async function obtenerMetrobus() {
         const page = await browser.newPage();
 
         await page.goto(URL, {
-			waitUntil: "domcontentloaded",
-			timeout: 30000
-		});
-		
-		//  DEBUG frames
-		const frames = page.frames();
+            waitUntil: "domcontentloaded",
+            timeout: 30000
+        });
 
-		console.log("FRAMES DETECTADOS:");
-		frames.forEach(f => console.log(f.url()));
-		
-	
+        // 🔥 esperar tabla real
+        await page.waitForSelector(".ui-datatable-data", { timeout: 10000 });
 
-		//  encontrar iframe correcto
-		const frame = page.frames().find(f =>
-		f.url().includes("bandejaEstadoServicio")
-		);
-
-		if (!frame) {
-		console.log("❌ No se encontró el frame");
-		return [];
-		}
-
-		// esperar tabla dentro del iframe
-		await frame.waitForSelector("table", { timeout: 10000 });
-
-		const html = await frame.content();
-
-
-
-		if (!frame) {
-		console.log("❌ No se encontró el frame");
-		return [];
-		}
-
-		const html = await frame.content();
-
-
+        const html = await page.content();
         const $ = cheerio.load(html);
 
         let resultados = [];
-		
-		//  selector más específico
+
         $(".ui-datatable-data tr").each((i, el) => {
             const columnas = $(el).find("td");
 
@@ -90,9 +60,6 @@ async function obtenerMetrobus() {
 
     } catch (error) {
         console.error("❌ Puppeteer error:", error.message);
-		console.log("HTML parcial:");
-		console.log("HTML frame:");
-		console.log(html.substring(0, 300));
         return [];
 
     } finally {
